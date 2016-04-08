@@ -71,7 +71,7 @@ public class Lock extends AppCompatActivity {
         discoverableIntent.putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 0);
         startActivity(discoverableIntent);
 
-        // thread for accepting and handling bluetooth commmunication
+        // thread for accepting and handling bluetooth communication
         Runnable r = new Runnable() {
             @Override
             public void run() {
@@ -120,47 +120,59 @@ public class Lock extends AppCompatActivity {
                                 }
                             }
                             if (!query) { // this is an unlock attempt, check if password is correct
-                                boolean correct = true;
-                                String otp = "temp";
-                                // generate OTP
-                                mMovingFactor = (System.currentTimeMillis() / 1000) / 60;
-                                try {
-                                    otp = HOTPAlgorithm.generateOTP(secretBytes, mMovingFactor, 6, 0);
-                                } catch (NoSuchAlgorithmException nsae) { }
-                                catch (InvalidKeyException ike) { }
-                                byte[] otpBytes = otp.getBytes();
-                                for (int i = 0; i < otpBytes.length; i++) {
-                                    if (otpBytes[i] != buffer[i]) {
-                                        String answer = "n";
+                                if (mLockStatus.getText().equals("Unlocked")) { // First check if bike is already unlocked
+                                    String answerUnlocked = "u";
+                                    byte[] byteUnlocked = answerUnlocked.getBytes();
+                                    try {
+                                        mOutStream.write(byteUnlocked);
+                                    } catch (IOException e) {
+                                    }
+                                } else {
+                                    boolean correct = true;
+                                    String otp = "temp";
+                                    // generate OTP
+                                    mMovingFactor = (System.currentTimeMillis() / 1000) / 60;
+                                    try {
+                                        otp = HOTPAlgorithm.generateOTP(secretBytes, mMovingFactor, 6, 0);
+                                    } catch (NoSuchAlgorithmException nsae) {
+                                    } catch (InvalidKeyException ike) {
+                                    }
+                                    byte[] otpBytes = otp.getBytes();
+                                    for (int i = 0; i < otpBytes.length; i++) {
+                                        if (otpBytes[i] != buffer[i]) {
+                                            String answer = "n";
+                                            byte[] byteAnswer = answer.getBytes();
+                                            try {
+                                                mOutStream.write(byteAnswer);
+                                            } catch (IOException e) {
+                                            }
+                                            correct = false;
+                                            break;
+                                        }
+                                    }
+                                    if (correct) {
+                                        mLockStatus.post(new Runnable() {
+                                            @Override
+                                            public void run() {
+                                                mLockStatus.setText(R.string.status_unlocked);
+                                            }
+                                        });
+                                        mLockImage.post(new Runnable() {
+                                            @Override
+                                            public void run() {
+                                                mLockImage.setImageResource(R.drawable.unlock_icon);
+                                            }
+                                        });
+
+                                        String answer = "y";
                                         byte[] byteAnswer = answer.getBytes();
                                         try {
                                             mOutStream.write(byteAnswer);
-                                        } catch (IOException e) { }
-                                        correct = false;
-                                        break;
+                                        } catch (IOException e) {
+                                        }
                                     }
                                 }
-                                if (correct) {
-                                    mLockStatus.post(new Runnable() {
-                                        @Override
-                                        public void run() {
-                                            mLockStatus.setText(R.string.status_unlocked);
-                                        }
-                                    });
-                                    mLockImage.post(new Runnable() {
-                                        @Override
-                                        public void run() {
-                                            mLockImage.setImageResource(R.drawable.unlock_icon);
-                                        }
-                                    });
-
-                                    String answer = "y";
-                                    byte[] byteAnswer = answer.getBytes();
-                                    try {
-                                        mOutStream.write(byteAnswer);
-                                    } catch (IOException e) { }
-                                }
-                            } else {
+                            } else { // user is attempting to return bike, we need to check if bike is properly locked
                                 if (mLockStatus.getText().toString().equals("Locked")) {
                                     String answer = "y";
                                     byte[] byteAnswer = answer.getBytes();
